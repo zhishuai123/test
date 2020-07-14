@@ -1,36 +1,45 @@
 ﻿// json.cpp : 此文件包含 "main" 函数。程序执行将在此处开始并结束。
 //
 
-#include <iostream>
-#include<string>
-#include<vector>
-#include<unordered_map>
-#include<map>
+#include<iostream>
+#include<stack>
 #include"json.h"
 using namespace std;
 //类名大写
 //函数名下划线
 //变量名驼峰命名法
-class OBJECT {
-    unordered_map<string,JSON> object;
-public:
-    OBJECT(unordered_map<string, JSON> obj) :object(obj) {};
-    OBJECT(const OBJECT& obj) :object(obj.object) {};
-    bool set(string key,const JSON& json);
-    JSON get(string key);
-    bool del(string key);
-    ~OBJECT() {};
-};
-bool OBJECT::set(string key, const JSON& json)
+json_e JSON::get_type() const
+{
+    return type;
+}
+string JSON::json_to_string()
+{
+    return "";
+}
+
+JSON& JSON::clone()
+{
+    return *this;
+}
+void JSON::set_type(json_e type)
+{
+    this->type = type;
+}
+JSON* JSON::copy()         //这个函数不该被执行
+{
+    return new JSON(JSON_NONE);
+}
+
+bool OBJECT::set(string key, shared_ptr<JSON> json)
 {
     object[key] = json;
     return true;
 }
-JSON OBJECT::get(string key)
+shared_ptr<JSON> OBJECT::get(string key)
 {
     if (object.find(key) != object.end())
         return object[key];
-    return JSON_NULL(JSON_NONE);
+    return shared_ptr<JSON>(new JSON_NULL());
 }
 bool OBJECT::del(string key)
 {
@@ -38,214 +47,367 @@ bool OBJECT::del(string key)
     object.erase(key);
     return true;
 }
-
-class ARRAY {
-    vector<JSON> array;                
-public:
-    ARRAY(const ARRAY& arr);
-    bool set_by_idx(U32 index, const JSON& json);
-    bool add(const JSON& json);
-    bool del_by_idx(U32 index);
-    JSON get_by_idx(U32 index);
-    U32 size();
-    ~ARRAY() {};
-};
-bool ARRAY::set_by_idx(U32 index, const JSON& json)
+OBJECT& OBJECT::operator=(const OBJECT& obj)                    //深拷贝
 {
-    array[index] = json;
+    //object = obj.object;         //好像不需要了 如果有错先看这里
+    object.clear();
+    for (auto i = obj.object.begin(); i != obj.object.end(); i++)
+        object[i->first] = shared_ptr<JSON>((i->second)->copy());
+    return *this;
+}
+unordered_map<string, shared_ptr<JSON>>& OBJECT::get_object()
+{
+    return object;
+}
+
+bool ARRAY::set_by_idx(U32 index, shared_ptr<JSON> json)
+{
+    arry[index] = json;
     return true;
 }
 bool ARRAY::del_by_idx(U32 index)
 {
-    if (index >= array.size())
+    if (index >= arry.size())
         return false;
-    array.erase(array.begin() + index);
+    arry.erase(arry.begin() + index);
     return true;
 }
-bool ARRAY::add(const JSON& json)
+bool ARRAY::add(shared_ptr<JSON> json)
 {
-    array.push_back(json);
+    arry.push_back(json);
     return true;
 }
-JSON ARRAY::get_by_idx(U32 index)
+shared_ptr<JSON> ARRAY::get_by_idx(U32 index)
 {
-    if (index >= array.size())
-        return JSON_NULL(JSON_NONE);
-    return array[index];
+    if (index >= arry.size())
+        return shared_ptr<JSON>(new JSON_NULL());
+    return arry[index];
 }
 U32 ARRAY::size()
 {
-    return array.size();
+    return arry.size();
 }
-
-
-class JSON {
-    json_e type;
-public:
-    JSON(json_e type) :type(type) {};
-    json_e get_type()const;
-    virtual string to_string();
-    virtual ~JSON() {};
-};
-json_e JSON::get_type() const
+ARRAY& ARRAY::operator=(const ARRAY& arr)                       //深拷贝
 {
-    return type;
+    arry.clear();
+    for (auto i = arr.arry.begin(); i != arr.arry.end(); i++)
+        arry.push_back(shared_ptr<JSON>((*i)->copy()));
+    return *this;
 }
-string JSON::to_string()
-{
-    return "";
-}
 
-
-class JSON_NUMBER :public JSON {
-    double num;
-public:
-    JSON_NUMBER(double num) :JSON(JSON_NUM), num(num) {}
-    JSON_NUMBER(const JSON_NUMBER& jsonNum) :JSON(jsonNum.get_type()), num(jsonNum.num) {}     //拷贝构造
-
-    JSON_NUMBER(string str);                                                                   //反序列化
-    string to_string();                                                                     //序列化
-
-    double get_num();
-    bool set(double num);
-
-    virtual ~JSON_NUMBER();
-};
-JSON_NUMBER::JSON_NUMBER(string str):JSON(JSON_NUM)
-{
-    num = stod(str);
-}
-string JSON_NUMBER::to_string()
+string JSON_NUMBER::json_to_string()
 {
     return std::to_string(num);
 }
-
-class JSON_BOOL :public JSON {
-    bool boolValue;
-public:
-    JSON_BOOL(bool boolValue) :JSON(JSON_BOL), boolValue(boolValue) {}
-    JSON_BOOL(const JSON_BOOL& jsonBool) :JSON(jsonBool.get_type()), boolValue(jsonBool.boolValue) {}     //拷贝构造
-
-    JSON_BOOL(string str);                                                                   //反序列化
-    virtual string to_string();                                                              //序列化
-
-    bool get_bol();
-    bool set(bool boolValue);
-
-    virtual ~JSON_BOOL();
-
-};
-JSON_BOOL::JSON_BOOL(string str)
+double JSON_NUMBER::get_num()
 {
-    if (str == "true" || str == "TRUE")
-        boolValue = true;
-    else if()
+    return num;
+}
+bool JSON_NUMBER::set(double num)
+{
+    this->num = num;
+    return true;
+}
+JSON_NUMBER* JSON_NUMBER::copy()
+{
+    return new JSON_NUMBER(num);
 }
 
 
-class JSON_STRING :public JSON {
-    string str;
-public:
-    JSON_STRING(string str) :JSON(JSON_STR), str(str) {}
-    JSON_STRING(const JSON_STRING& jsonStr) :JSON(jsonStr.get_type()), str(jsonStr.str) {}     //拷贝构造
-
-    JSON_STRING(string str);                                                                //反序列化
-    virtual string to_string();                                                          //序列化
-
-    string get_str();
-    bool set(string str);
-
-    virtual ~JSON_STRING();
-
-};
-
-class JSON_ARRAY :public JSON {
-    ARRAY arr;
-public:
-    JSON_ARRAY(ARRAY arr) :JSON(JSON_ARR), arr(arr) {}
-    JSON_ARRAY(const JSON_ARRAY& jsonArr) :JSON(jsonArr.get_type()), arr(jsonArr.arr) {}     //拷贝构造
-
-    JSON_ARRAY(string str);                                                                //反序列化
-    virtual string to_string();                                                          //序列化
-
-    ARRAY get_arr_val();
-    ARRAY& get_arr();
-    bool set(const ARRAY& arr);
-
-    virtual ~JSON_ARRAY();
-};
-
-class JSON_OBJECT :public JSON {
-    OBJECT obj;
-public:
-    JSON_OBJECT(OBJECT obj) :JSON(JSON_OBJ), obj(obj) {}
-    JSON_OBJECT(const JSON_OBJECT& jsonObj) :JSON(jsonObj.get_type()), obj(jsonObj.obj) {}     //拷贝构造
-
-    JSON_OBJECT(string str);                                                                //反序列化
-    virtual string to_string();                                                          //序列化
-
-    OBJECT get_obj_val();
-    OBJECT& get_obj();
-    bool set(const OBJECT& obj);
-
-    virtual ~JSON_OBJECT() {};
-};
-
-class JSON_NULL :public JSON {
-public:
-    JSON_NULL(json_e type) :JSON(type){}
-    JSON_NULL(string str);                                                                //反序列化
-    virtual string to_string();                                                           //序列化
-    virtual ~JSON_NULL() {};
-};
+JSON_BOOL::JSON_BOOL(string str) :JSON(JSON_BOL), boolValue(true)
+{
+    if (str == "true")
+        boolValue = true;
+    else if (str == "fasle")
+        boolValue = false;
+}
+string JSON_BOOL::json_to_string()
+{
+    return boolValue ? "true" : "false";
+}
+bool JSON_BOOL::get_bol()
+{
+    return boolValue;
+}
+bool JSON_BOOL::set(bool bol)
+{
+    boolValue = bol;
+    return true;
+}
+JSON_BOOL* JSON_BOOL::copy()
+{
+    return new JSON_BOOL(boolValue);
+}
 
 
-//                                  //没有继承版
-//class Object {
-//    map<string, JSON> object;
-//public:
-//
-//};
-//class Array {
-//    vector<JSON> array;
-//public:
-//
-//};
-//class JSON {
-//    json_e type;
-//    bool boolValue;
-//    double num;
-//    string str;
-//    Array arr;
-//    Object obj;
-//public:
-//    JSON(json_e type);
-//    JSON(const JSON& json);
-//    JSON(string str);
-//    ~JSON();
-//
-//    bool set_num(double val);
-//
-//    bool set_bool(bool val);
-//    bool set_str(string str);
-//    bool set_arr(Array arr);
-//    bool set_obj(Object obj);
-//
-//    double get_num_val();
-//    bool get_bool_val();
-//    string get_str_val();
-//    Array get_arr_val();
-//    Object get_obj_val();
-//    json_e get_type_val();
-//
-//    string& get_str();
-//    Array& get_arr();
-//    Object& get_obj();
-//
-//
-//
-//};
+string JSON_STRING::get_str()
+{
+    return str;
+}
+string JSON_STRING::json_to_string()
+{
+    return "\"" + str + "\"";
+}
+JSON_STRING* JSON_STRING::copy()
+{
+    return new JSON_STRING(str);
+}
+bool JSON_STRING::set(string str)
+{
+    this->str = str;
+    return true;
+}
+
+
+string JSON_ARRAY::json_to_string()
+{
+    string str= "[";
+    if (arr.size() == 0)
+        return "[]";
+    str += arr.get_by_idx(0)->json_to_string();
+    for (int i = 1; i < arr.size(); i++)
+        str += ("," + arr.get_by_idx(i)->json_to_string());
+    str += "]";
+    return str;
+}
+JSON_ARRAY* JSON_ARRAY::copy()
+{
+    return new JSON_ARRAY(arr);                                 //调用ARRAY的拷贝构造函数  拷贝构造和虚函数copy递归 在num string bool类型的JSON处终止递归
+}
+ARRAY& JSON_ARRAY::get_arr()
+{
+    return arr;
+}
+bool JSON_ARRAY::set(const ARRAY& arr)
+{
+    this->arr = arr;
+    return true;
+}
+JSON_ARRAY::JSON_ARRAY(string str):JSON(JSON_ARR)
+{
+    string tem;                                         //存放要反序列化的子串
+    stack<char> sta;                                   
+    for (int i = 0; i <= str.size(); i++)                 //判断条件加了等于 因为i==str.size()时需要将最后一个字串反序列化，下标不会越界
+    {
+        if (str[i] == ','&&sta.empty()||i==str.size())                //如果遇到逗号,不用放到tem中
+        {
+            if (tem.size() == 0)                        //对错误情况暂不处理
+                return;                         
+            if (tem[0] == '{')
+                arr.add(shared_ptr<JSON>(new JSON_OBJECT(tem.substr(1, tem.size() - 2))));
+            else if (tem[0] == '[')
+                arr.add(shared_ptr<JSON>(new JSON_ARRAY(tem.substr(1, tem.size() - 2))));
+            else if (tem[0] == '"')
+                arr.add(shared_ptr<JSON>(new JSON_STRING(tem.substr(1, tem.size() - 2))));
+            else if (tem[0] == 't' && tem.size() == 4)
+                arr.add(shared_ptr<JSON>(new JSON_BOOL(true)));
+            else if (tem[0] == 'f' && tem.size() == 5)
+                arr.add(shared_ptr<JSON>(new JSON_BOOL(false)));
+            else if (tem[0] == 'n' && tem.size() == 4)
+                arr.add(shared_ptr<JSON>(new JSON_NULL()));
+            else
+                arr.add(shared_ptr<JSON>(new JSON_NUMBER(tem)));
+            tem.clear();
+            continue;                          
+        }
+        if (str[i] == '{' || str[i] == '[')
+            sta.push(str[i]);
+        else if (str[i] == '}' || str[i] == ']')    //暂时没有考虑括号不匹配的错误情况
+            sta.pop();
+        else if (str[i] == '"')
+        {
+            if (sta.empty()||sta.top()!='"')
+                sta.push(str[i]);
+            else
+                sta.pop();
+        }
+        tem += string(1,str[i]);
+    }
+
+}
+
+string JSON_OBJECT::json_to_string()
+{   if (obj.get_object().size() == 0)
+        return "{}";
+    string str = "{";
+    auto i = obj.get_object().begin();
+    str += ("\"" + i->first + "\":" + i->second->json_to_string());
+    i++;
+    for (; i != obj.get_object().end(); i++)
+        str += (",\"" + i->first + "\":" + i->second->json_to_string());
+    str += "}";
+    return str;
+}
+JSON_OBJECT* JSON_OBJECT::copy()
+{
+    return new JSON_OBJECT(obj);                                //调用OBJECT的拷贝构造函数  拷贝构造和虚函数copy递归 在num string bool类型的JSON处终止递归
+}
+OBJECT& JSON_OBJECT::get_obj()
+{
+    return obj;
+}
+bool JSON_OBJECT::set(const OBJECT& obj)
+{
+    this->obj = obj;
+    return true;
+}
+JSON_OBJECT::JSON_OBJECT(string str):JSON(JSON_OBJ)
+{
+    bool temIsKey = true;                                   //true表示tem里是key  false表示tem里是value的序列化结果
+    string key;
+    string tem;                                         //存放要反序列化的子串
+    stack<char> sta;
+    for (int i = 0; i <= str.size(); i++)                 //判断条件加了等于 因为i==str.size()时需要将最后一个字串反序列化，下标不会越界
+    {
+        if (!temIsKey&&str[i] == ',' && sta.empty() || i == str.size())                //如果遇到逗号,不用放到tem中
+        {
+            if (tem.size() == 0)                        //对错误情况暂不处理
+                return;
+            if (tem[0] == '{')
+                obj.set(key, shared_ptr<JSON>(new JSON_OBJECT(tem.substr(1, tem.size() - 2))));
+            else if (tem[0] == '[')
+                obj.set(key, shared_ptr<JSON>(new JSON_ARRAY(tem.substr(1, tem.size() - 2))));
+            else if (tem[0] == '"')
+                obj.set(key, shared_ptr<JSON>(new JSON_STRING(tem.substr(1, tem.size() - 2))));
+            else if (tem[0] == 't' && tem.size() == 4)
+                obj.set(key, shared_ptr<JSON>(new JSON_BOOL(true)));
+            else if (tem[0] == 'f' && tem.size() == 5)
+                obj.set(key, shared_ptr<JSON>(new JSON_BOOL(false)));
+            else if (tem[0] == 'n' && tem.size() == 4)
+                obj.set(key, shared_ptr<JSON>(new JSON_NULL()));
+            else
+                obj.set(key, shared_ptr<JSON>(new JSON_NUMBER(tem)));
+            tem.clear();
+            temIsKey = true;
+            continue;
+        }
+
+        if (str[i] == '{' || str[i] == '[')           //对stack操作  根据stack是否为空来判断当前子字符串是要递归的子串还是要在当前函数处理的子串
+            sta.push(str[i]);
+        else if (str[i] == '}' || str[i] == ']')    //暂时没有考虑括号不匹配的错误情况
+            sta.pop();
+        else if (str[i] == '"')
+        {
+            if (sta.empty() || sta.top() != '"')
+                sta.push(str[i]);
+            else
+                sta.pop();
+        }
+        if (str[i] == ':'&&sta.empty())
+        {
+            key = tem.substr(1, tem.size() - 2);
+            tem.clear();
+            temIsKey = false;
+            continue;
+        }
+        tem += string(1, str[i]);
+    }
+}
+
+string JSON_NULL::json_to_string()
+{
+    return "null";
+}
+JSON_NULL* JSON_NULL::copy()
+{
+    return new JSON_NULL();
+}
+
+
+shared_ptr<JSON> string_to_json(string json)                  //反序列化 返回一个JSON对象  没有错误情况处理 输入不是JSON的时候 结果未知
+{
+    for (auto i = json.begin(); i != json.end();)
+    {
+        if (*i == '\n' || *i == ' ' || *i == '\t')
+            i = json.erase(i);
+        else
+            i++;
+    }
+    if (!json.empty())
+    {
+        if (json[0] == '{')
+            return shared_ptr<JSON>(new JSON_OBJECT(json.substr(1, json.size() - 2)));
+        else if (json[0] == '[')
+            return shared_ptr<JSON>(new JSON_ARRAY(json.substr(1, json.size() - 2)));
+        else if (json[0] == '"')
+            return shared_ptr<JSON>(new JSON_STRING(json.substr(1, json.size() - 2)));
+        else if (json[0] == 't' && json.size() == 4)
+            return (shared_ptr<JSON>(new JSON_BOOL(true)));
+        else if (json[0] == 'f' && json.size() == 5)
+            return (shared_ptr<JSON>(new JSON_BOOL(false)));
+        else if (json[0] == 'n' && json.size() == 4)
+            return shared_ptr<JSON>(new JSON_NULL());
+        else
+            return (shared_ptr<JSON>(new JSON_NUMBER(json)));
+    }
+    else
+        return shared_ptr<JSON>(new JSON_NULL());
+}
+
+
 int main()
 {
+    /*
+    //测试代码
+    shared_ptr<JSON> json0 = shared_ptr<JSON>(new JSON_NULL());
+    shared_ptr<JSON> json1 = shared_ptr<JSON>(new JSON_BOOL(true));
+    shared_ptr<JSON> json2 = shared_ptr<JSON>(new JSON_STRING("Hello,JSON"));
+    
+    ARRAY arr;
+    arr.add(json0);
+    arr.add(json1);
+    arr.add(json2);
+    shared_ptr<JSON> json3 = shared_ptr<JSON>(new JSON_ARRAY(arr));
+    OBJECT object;
+    object.set("my key", json3);
+    shared_ptr<JSON> json4 = shared_ptr<JSON>(new JSON_OBJECT(object));
+    object.set("second key", shared_ptr<JSON>(json4->copy()));
+    json4 = shared_ptr<JSON>(new JSON_OBJECT(object));
+
+    static_cast<JSON_OBJECT*>(&*json4)->get_obj().set("third", shared_ptr<JSON>(new JSON_NULL()));
+    string s = json4->json_to_string();
+    cout << s << endl;
+    //shared_ptr<JSON> json5 = shared_ptr<JSON>(new JSON_ARRAY(s.substr(1, s.size() - 2)));
+    shared_ptr<JSON> json5 = shared_ptr<JSON>(new JSON_OBJECT(s.substr(1, s.size() - 2)));
+    s = json5->json_to_string();
+    cout << s<<endl;
+    json5 = shared_ptr<JSON>(new JSON_OBJECT(s.substr(1, s.size() - 2)));
+    cout << json5->json_to_string();
+    */
+    /*
+     {
+        "basic": {
+            "enable": true,
+            "ip": "200.200.3.61",
+            "port": 389,
+            "timeout": 10,
+            "basedn": "aaa",
+            "fd": -1,
+            "maxcnt": 133333333333,
+            "dns": ["200.200.0.1", "200.0.0.254"]
+        },
+        "advance": {
+            "dns": [
+                {"name":"huanan", "ip": "200.200.0.1"}, 
+                {"name":"huabei", "ip": "200.0.0.254"}],
+            "portpool": [130,131,132],
+            "url": "http://200.200.0.4/main",
+            "path": "/etc/sinfors",
+            "value": 3.14
+        }
+    }
+    一个测试用例
+    
+    */
+    string input;
+    string str;
+    while (getline(cin, input))          //循环读入  windows下在标准输入中输入ctrl+z结束循环
+        str += input;
+
+    shared_ptr<JSON> json = string_to_json(str);        
+    cout << json->json_to_string() << endl;
+    static_cast<JSON_OBJECT*>(&*json)->get_obj().del("basic");
+    cout << json->json_to_string();
+
     return 0;
 }
