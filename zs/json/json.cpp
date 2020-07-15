@@ -62,6 +62,9 @@ unordered_map<string, shared_ptr<JSON>>& OBJECT::get_object()
 
 bool ARRAY::set_by_idx(U32 index, shared_ptr<JSON> json)
 {
+    JSON_ARRAY* json_tem = static_cast<JSON_ARRAY*>(&*json);
+    if (index >= json_tem->get_arr().size())
+        return false;
     arry[index] = json;
     return true;
 }
@@ -160,10 +163,10 @@ bool JSON_STRING::set(string str)
 
 
 string JSON_ARRAY::json_to_string()
-{
-    string str= "[";
+{ 
     if (arr.size() == 0)
         return "[]";
+    string str= "[";
     str += arr.get_by_idx(0)->json_to_string();
     for (int i = 1; i < arr.size(); i++)
         str += ("," + arr.get_by_idx(i)->json_to_string());
